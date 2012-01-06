@@ -1,0 +1,38 @@
+<html>
+  <head>
+    <title>H3DPlugin Test</title>
+  </head>
+
+  <script type="text/javascript">
+      function plugin0()
+      {
+          return document.getElementById('plugin0');
+      }
+      plugin = plugin0;
+      
+      function loadURL () {
+        var url= document.getElementById('url_field').value;
+        if ( url != "" ) {
+          plugin().loadScene ( url );
+        } else {
+          alert ( "No URL or file specified!" );
+        }
+        return false;
+      }
+
+  </script>
+  
+<body>
+
+<h1>H3DPlugin Test</h1>
+<object id="plugin0" type="model/x3d+xml" width="800" height="500" data="KeySensor.x3d">
+</object>
+
+<!--<form>
+  URL:
+  <input id="url_field" type="text" name="url" />
+  <a href='#' onclick='loadURL()'>Load</a>
+</form>-->
+
+</body>
+</html>

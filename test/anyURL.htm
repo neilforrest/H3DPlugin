@@ -1,0 +1,52 @@
+<html>
+  <head>
+    <title>H3DPlugin Test</title>
+  </head>
+
+  <script type="text/javascript">
+      function plugin0()
+      {
+          return document.getElementById('plugin0');
+      }
+      plugin = plugin0;
+      
+      function loadURL () {
+        var url= document.getElementById('url_field').value;
+        if ( url != "" ) {
+          plugin().loadScene ( url );
+        } else {
+          alert ( "No URL or file specified!" );
+        }
+        return false;
+      }
+
+      function load () {
+        if (plugin() == null || plugin().valid == undefined || !plugin().valid) {
+          window.location = "install.php?referer=" + window.location;
+        }
+      }
+      
+  </script>
+  
+<body onload="load()">
+
+<h1>H3DPlugin Test</h1>
+<object id="plugin0" type="model/x3d+xml" width="800" height="500" data="Box.x3d">
+</object>
+
+<p>Click a scene to load...</p>
+<ul>
+  <li><a href="#" onclick="plugin().loadScene('http://localhost/H3DPlugin/Background.x3d')">Background</a></li>
+  <li><a href="#" onclick="plugin().loadScene('http://localhost/H3DPlugin/Box.x3d')">Box</a></li>
+  <li><a href="#" onclick="plugin().loadScene('http://localhost/H3DPlugin/ScalarInterpolator.x3d')">ScalarInterpolator</a></li>
+</ul>
+
+<p>Or enter any URL then click Load...</p>
+<form>
+  URL:
+  <input id="url_field" type="text" name="url" />
+  <a href='#' onclick='loadURL()'>Load</a>
+</form>
+
+</body>
+</html>

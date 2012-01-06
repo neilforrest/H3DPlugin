@@ -53,13 +53,37 @@
                                     KeyPath="yes" />
                             </Component>
 
-                            <!-- Put Additional files here: -->
-                            <!-- example:
-                            <Component Id="UniqueComponentId" Guid="*">
-                                <File Id="uniqueFileId" KeyPath="yes" Source="SourceDir\filename.ext" />
-                            </Component>
-                            /example -->
-                            <!--  -->
+                          <!-- Install local H3D runtime -->
+                          <Component Id="H3DAPI" Guid="a22bbd38-eb58-463b-9008-94805f3f7730">
+                            <File Id="H3DAPI_vc10" Source="$(env.H3D_ROOT)\..\bin\H3DAPI_vc10.dll" />
+                            <File Id="HAPI_vc10" Source="$(env.H3D_ROOT)\..\bin\HAPI_vc10.dll" />
+                            <File Id="H3DUtil_vc10" Source="$(env.H3D_ROOT)\..\bin\H3DUtil_vc10.dll" />
+                            
+                            <File Id="alut" Source="$(env.H3D_ROOT)\..\external\bin32\alut.dll" />
+                            <File Id="audiofile" Source="$(env.H3D_ROOT)\..\external\bin32\audiofile.dll" />
+                            <File Id="cg" Source="$(env.H3D_ROOT)\..\external\bin32\cg.dll" />
+                            <File Id="cgGL" Source="$(env.H3D_ROOT)\..\external\bin32\cgGL.dll" />
+                            <File Id="freeglut" Source="$(env.H3D_ROOT)\..\external\bin32\freeglut.dll" />
+                            <File Id="FreeImage" Source="$(env.H3D_ROOT)\..\external\bin32\FreeImage.dll" />
+                            <File Id="ftgl" Source="$(env.H3D_ROOT)\..\external\bin32\ftgl.dll" />
+                            <File Id="glew32" Source="$(env.H3D_ROOT)\..\external\bin32\glew32.dll" />
+                            <File Id="js32" Source="$(env.H3D_ROOT)\..\external\bin32\js32.dll" />
+                            <File Id="libcurl" Source="$(env.H3D_ROOT)\..\external\bin32\libcurl.dll" />
+                            <File Id="libogg" Source="$(env.H3D_ROOT)\..\external\bin32\libogg.dll" />
+                            <File Id="libvorbis" Source="$(env.H3D_ROOT)\..\external\bin32\libvorbis.dll" />
+                            <File Id="libvorbisfile" Source="$(env.H3D_ROOT)\..\external\bin32\libvorbisfile.dll" />
+                            <File Id="OpenAL32" Source="$(env.H3D_ROOT)\..\external\bin32\OpenAL32.dll" />
+                            <File Id="pthreadVC2" Source="$(env.H3D_ROOT)\..\external\bin32\pthreadVC2.dll" />
+                            <File Id="teem" Source="$(env.H3D_ROOT)\..\external\bin32\teem.dll" />
+                            <File Id="wrap_oal" Source="$(env.H3D_ROOT)\..\external\bin32\wrap_oal.dll" />
+                            <File Id="xerces" Source="$(env.H3D_ROOT)\..\external\bin32\xerces-c_3_1.dll" />
+                            <File Id="zlib1" Source="$(env.H3D_ROOT)\..\external\bin32\zlib1.dll" />
+                            
+                            <!-- TODO: Python? -->
+                            
+                            <RegistryValue Root="HKCU" Key="SOFTWARE\${COMPANY_NAME}\${PLUGIN_NAME}\${FBSTRING_PLUGIN_VERSION}\H3DAPIBundle" Name="Uninstall" Type="string" Value="1.0.0" KeyPath="yes" />
+                          </Component>
+                          
                         </Directory>
                     </Directory>
                 </Directory>
@@ -70,6 +94,7 @@
             <ComponentRef Id="InstallDirComp"/>
             <ComponentRef Id="PluginNameDirComp"/>
             <ComponentRef Id="CompanyDirComp"/>
+            <ComponentRef Id="H3DAPI"/>
             <ComponentGroupRef Id="PluginDLLGroup"/>
         </Feature>
     </Product>

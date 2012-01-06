@@ -11,6 +11,7 @@
 
 #include "PluginWindow.h"
 #include "PluginEvents/MouseEvents.h"
+#include "PluginEvents/KeyboardEvents.h"
 #include "PluginEvents/AttachedEvent.h"
 
 #include "PluginCore.h"
@@ -44,6 +45,9 @@ public:
     virtual FB::JSAPIPtr createJSAPI();
 
     static LPTHREAD_START_ROUTINE drawThreaded( LPVOID lpParam );
+    static H3D::Scene::CallbackCode loadSceneCallback ( void* data );
+
+    bool render ();
 
     void loadScene ( const std::string& url );
 
@@ -58,6 +62,10 @@ public:
         EVENTTYPE_CASE(FB::MouseUpEvent, onMouseUp, FB::PluginWindow)
         EVENTTYPE_CASE(FB::MouseMoveEvent, onMouseMove, FB::PluginWindow)
         EVENTTYPE_CASE(FB::MouseScrollEvent, onMouseScroll, FB::PluginWindow)
+
+        EVENTTYPE_CASE(FB::KeyDownEvent, onKeyDown, FB::PluginWindow)
+        EVENTTYPE_CASE(FB::KeyUpEvent, onKeyUp, FB::PluginWindow)
+
         EVENTTYPE_CASE(FB::AttachedEvent, onWindowAttached, FB::PluginWindow)
         EVENTTYPE_CASE(FB::DetachedEvent, onWindowDetached, FB::PluginWindow)
     END_PLUGIN_EVENT_MAP()
@@ -67,6 +75,10 @@ public:
     virtual bool onMouseUp(FB::MouseUpEvent *evt, FB::PluginWindow *);
     virtual bool onMouseMove(FB::MouseMoveEvent *evt, FB::PluginWindow *);
     virtual bool onMouseScroll(FB::MouseScrollEvent *evt, FB::PluginWindow *);
+
+    virtual bool onKeyDown(FB::KeyDownEvent *evt, FB::PluginWindow *);
+    virtual bool onKeyUp(FB::KeyUpEvent *evt, FB::PluginWindow *);
+
     virtual bool onWindowAttached(FB::AttachedEvent *evt, FB::PluginWindow *);
     virtual bool onWindowDetached(FB::DetachedEvent *evt, FB::PluginWindow *);
     /** END EVENTDEF -- DON'T CHANGE THIS LINE **/
@@ -97,6 +109,13 @@ protected:
   boost::condition h3d_inited_condition;
   bool h3d_inited;
   std::string sceneUrl;
+
+  bool h3d_finished;
+
+  boost::thread h3d_thread;
+
+  FB::PluginWindowWin* pluginWindowWin;
+  FB::PluginWindow* pluginWindow;
 
   // the buffer object for console_stream. Pointer is owned by
   // the console_stream object.

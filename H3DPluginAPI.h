@@ -29,6 +29,9 @@ public:
     // Read-only property ${PROPERTY.ident}
     std::string get_version();
 
+    std::string get_data();
+    void set_data(const std::string& val);
+
     // Method echo
     FB::variant echo(const FB::variant& msg);
     
@@ -47,6 +50,7 @@ private:
     FB::BrowserHostPtr m_host;
 
     std::string m_testString;
+    std::string m_data;
 };
 
 #endif // H_H3DPluginAPI

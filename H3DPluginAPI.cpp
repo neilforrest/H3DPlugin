@@ -38,6 +38,11 @@ H3DPluginAPI::H3DPluginAPI(const H3DPluginPtr& plugin, const FB::BrowserHostPtr&
     registerProperty("version",
                      make_property(this,
                         &H3DPluginAPI::get_version));
+
+    registerProperty("data",
+                     make_property(this,
+                        &H3DPluginAPI::get_data,
+                        &H3DPluginAPI::set_data));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -84,6 +89,15 @@ void H3DPluginAPI::set_testString(const std::string& val)
 std::string H3DPluginAPI::get_version()
 {
     return FBSTRING_PLUGIN_VERSION;
+}
+
+std::string H3DPluginAPI::get_data()
+{
+    return m_data;
+}
+void H3DPluginAPI::set_data(const std::string& val)
+{
+    m_data = val;
 }
 
 // Method echo
