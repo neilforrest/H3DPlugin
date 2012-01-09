@@ -56,6 +56,8 @@ namespace H3D {
                      Inst< SFBool      > _manualCursorControl = 0,
                      Inst< SFString    > _cursorType = 0 );
 
+    virtual ~H3DPluginWindow();
+
     /// Creates and initializes a wxWindow for OpenGL rendering
     virtual void initWindow();
 
@@ -71,6 +73,10 @@ namespace H3D {
     /// Make this the current window.
     virtual void makeWindowActive();
     
+    /// Overidden to disable sharing context as it causes a crash when more than
+    /// one plugin instance is running.
+    virtual void initialize();
+
     /// The H3DNodeDatabase for this node.
     static H3DNodeDatabase database;
 

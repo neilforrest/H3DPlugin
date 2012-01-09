@@ -45,58 +45,46 @@ boost::scoped_ptr<LeakFinderXmlOutput> FBTestPlugin::pOut;
 
 using namespace H3D;
 
-LPTHREAD_START_ROUTINE H3DPlugin::drawThreaded( LPVOID lpParam )
-{
-  H3DPlugin* plugin= static_cast<H3DPlugin*>(lpParam);
+H3DPlugin::StaticState H3DPlugin::staticState;
 
-  FBLOG_INFO("H3DPlugin::drawThreaded()", "Started main H3D Thread!");
-
+void H3DPlugin::drawThreaded() {
   ThreadBase::setMainThreadId ( ThreadBase::getCurrentThreadId() );
 
-  plugin->h3d_mutex.lock();
-  plugin->scene.reset ( new Scene );
-
-  plugin->h3dPluginWindow= new H3DPluginWindow ( plugin->pluginWindowWin );
-  plugin->scene->window->push_back ( plugin->h3dPluginWindow );
-  if ( plugin->sceneUrl != "" ) {
-    try {
-      plugin->scene->loadSceneRoot( plugin->sceneUrl );
-    } 
-    catch (const Exception::H3DException &e) {
-      Console(4) << e << endl;
-    }
-  }
-
-  // OpenGL is initialized, it's ok for the
-  // attach window function to return now
-  plugin->h3d_inited= true;
-  plugin->h3d_inited_condition.notify_all();
-  plugin->h3d_mutex.unlock();
-
-  FBLOG_INFO("H3DPlugin::drawThreaded()", "Entering main loop");
-
-  while ( plugin->render() ) {
+  while ( H3DPlugin::idle() ) {
     // Give event callbacks a chance to get the mutex
     boost::this_thread::sleep(boost::posix_time::milliseconds(1));
   }
-
-  FBLOG_INFO("H3DPlugin::drawThreaded()", "EXITED main H3D Thread!");
-
-  return 0;
 }
 
-Scene::CallbackCode H3DPlugin::loadSceneCallback ( void* data ) {
+void H3DPlugin::addH3DThreadCallback ( CallbackFunc callback, void* data ) {
+  boost::mutex::scoped_lock lock ( staticState.h3d_mutex );
+  staticState.callbacks.push_back ( make_pair<CallbackFunc, void*>(callback, data) );
+}
+
+void H3DPlugin::addH3DThreadCallbackBlocking ( CallbackFunc callback, void* data ) {
+  addH3DThreadCallback ( callback, data );
+  
+  boost::mutex::scoped_lock lk(staticState.h3d_mutex);
+  staticState.callbacks_executed= false;
+
+  while ( !staticState.callbacks_executed ) {
+    staticState.callbacks_executed_condition.wait(lk);
+  }
+}
+
+void H3DPlugin::loadSceneCallback ( void* data ) {
   H3DPlugin* plugin= static_cast<H3DPlugin*>(data);
-  plugin->scene->loadSceneRoot ( plugin->sceneUrl );
-  return Scene::CallbackCode::CALLBACK_DONE;
+  if ( plugin->scene.get() ) {
+    plugin->scene->loadSceneRoot ( plugin->sceneUrl );
+  }
 }
 
 void H3DPlugin::loadScene ( const std::string& url ) {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
+  staticState.h3d_mutex.lock();
   sceneUrl= url;
-  if ( scene.get() ) {
-    scene->addCallback ( H3DPlugin::loadSceneCallback, this );
-  }
+  staticState.h3d_mutex.unlock();
+
+  addH3DThreadCallbackBlocking ( loadSceneCallback, this );
 }
 
 std::streamsize H3DPlugin::ConsoleStreamBuf::xsputn ( const char * s, 
@@ -114,8 +102,11 @@ std::streamsize H3DPlugin::ConsoleStreamBuf::xsputn ( const char * s,
 ///////////////////////////////////////////////////////////////////////////////
 void H3DPlugin::StaticInitialize()
 {
-    // Place one-time initialization stuff here; As of FireBreath 1.4 this should only
-    // be called once per process
+  // Place one-time initialization stuff here; As of FireBreath 1.4 this should only
+  // be called once per process
+
+  // Start the main H3D thread
+  staticState.h3d_thread= boost::thread(&H3DPlugin::drawThreaded);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -129,6 +120,11 @@ void H3DPlugin::StaticDeinitialize()
 {
     // Place one-time deinitialization stuff here. As of FireBreath 1.4 this should
     // always be called just before the plugin library is unloaded
+
+  staticState.h3d_mutex.lock();
+  staticState.h3d_finished= true;
+  staticState.h3d_mutex.unlock();
+  staticState.h3d_thread.join();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -137,9 +133,8 @@ void H3DPlugin::StaticDeinitialize()
 ///         the JSAPI object until the onPluginReady method is called
 ///////////////////////////////////////////////////////////////////////////////
 H3DPlugin::H3DPlugin() : 
-  h3d_inited ( false ), 
-  h3d_finished ( false ),
-  h3dPluginWindow ( NULL )
+  h3dPluginWindow ( NULL ),
+  pluginWindowWin ( NULL )
 {
 }
 
@@ -163,13 +158,11 @@ void H3DPlugin::onPluginReady()
   // PluginWindow may or may not have already fire the AttachedEvent at
   // this point.
 
-  FBLOG_INFO("H3DPlugin::onPluginReady()", "plugin ready");
-
-  // Attempt to redirect the console to browser's java script console
-  // Firefox: See FireBug console for output
-  console_stream_buf = new ConsoleStreamBuf( *m_host );
-  console_stream.reset( new ostream( console_stream_buf ) );
-  H3DUtil::Console.setOutputStream( *console_stream );
+  //// Redirect the console to browser's java script console
+  //// Firefox: See FireBug console for output
+  //console_stream_buf = new ConsoleStreamBuf( *m_host );
+  //console_stream.reset( new ostream( console_stream_buf ) );
+  //H3DUtil::Console.setOutputStream( *console_stream );
 
   // Load the requested scene
   if ( m_params.find ( "data" ) != m_params.end() ) {
@@ -189,17 +182,6 @@ void H3DPlugin::shutdown()
     // destroyed. This is the last point that shared_from_this and weak_ptr
     // references to this object will be valid
 
-  FBLOG_INFO("H3DPlugin::shutdown()", "shutdown");
-
-  //if ( h3d_inited ) {
-    
-  //}
-  h3d_mutex.lock();
-  h3d_finished= true;
-  h3d_mutex.unlock();
-  h3d_thread.join();
-
-  FBLOG_INFO("H3DPlugin::shutdown()", "shutdown COMPLETE");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -219,113 +201,173 @@ FB::JSAPIPtr H3DPlugin::createJSAPI()
     return boost::make_shared<H3DPluginAPI>(FB::ptr_cast<H3DPlugin>(shared_from_this()), m_host);
 }
 
-bool H3DPlugin::render () {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
+bool H3DPlugin::idle () {
+  boost::mutex::scoped_lock lock ( staticState.h3d_mutex );
 
-  try {
-    scene->idle ();
-  } 
-  catch (const Exception::H3DException &e) {
-    Console(4) << e << endl;
+  /// TODO: There are issues when using multiple scenes
+  /// * Flickering in Firefox
+  /// * Background (white)
+  /// * Navigation
+  if ( staticState.count <= 1 ) {
+    for( set< Scene * >::iterator i = Scene::scenes.begin();
+      i != Scene::scenes.end();
+      i++ ) {
+      if( (*i)->isActive() ) {
+        try {
+          (*i)->idle();
+        } catch (const Exception::H3DException &e) {
+          Console(4) << e << endl;
+        }
+      }
+    }
   }
 
-  return !h3d_finished;
+  for ( CallbackList::iterator i= staticState.callbacks.begin(); i != staticState.callbacks.end(); ++i ) {
+    (*(*i).first) ( (*i).second );
+  }
+  staticState.callbacks.clear();
+
+  staticState.callbacks_executed= true;
+  staticState.callbacks_executed_condition.notify_all();
+
+  return !staticState.h3d_finished;
+}
+
+void H3DPlugin::onMouseDownCallback ( void* data ) {
+  EventData* d= static_cast<EventData*>(data);
+  if ( d->plugin->h3dPluginWindow ) {
+    d->plugin->h3dPluginWindow->onMouseButtonAction( MouseSensor::LEFT_BUTTON, MouseSensor::DOWN );
+  }
 }
 
 bool H3DPlugin::onMouseDown(FB::MouseDownEvent *evt, FB::PluginWindow *)
 {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
-  if ( h3dPluginWindow ) {
-    h3dPluginWindow->onMouseButtonAction( MouseSensor::LEFT_BUTTON, MouseSensor::DOWN );
-  }
+  EventData d ( this, evt );
+  addH3DThreadCallbackBlocking ( onMouseDownCallback, &d );
   return false;
+}
+
+void H3DPlugin::onMouseUpCallback ( void* data ) {
+  EventData* d= static_cast<EventData*>(data);
+  if ( d->plugin->h3dPluginWindow ) {
+    d->plugin->h3dPluginWindow->onMouseButtonAction( MouseSensor::LEFT_BUTTON, MouseSensor::UP );
+  }
 }
 
 bool H3DPlugin::onMouseUp(FB::MouseUpEvent *evt, FB::PluginWindow *)
 {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
-  if ( h3dPluginWindow ) {
-    h3dPluginWindow->onMouseButtonAction( MouseSensor::LEFT_BUTTON, MouseSensor::UP );
-  }
+  EventData d ( this, evt );
+  addH3DThreadCallbackBlocking ( onMouseUpCallback, &d );
   return false;
+}
+
+void H3DPlugin::onMouseMoveCallback ( void* data ) {
+  EventData* d= static_cast<EventData*>(data);
+  FB::MouseMoveEvent* evt= static_cast<FB::MouseMoveEvent*>(d->event);
+
+  if ( d->plugin->h3dPluginWindow ) {
+    d->plugin->h3dPluginWindow->onMouseMotionAction( evt->m_x, evt->m_y );
+  }
 }
 
 bool H3DPlugin::onMouseMove(FB::MouseMoveEvent *evt, FB::PluginWindow *)
 {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
-  if ( h3dPluginWindow ) {
-    h3dPluginWindow->onMouseMotionAction( evt->m_x, evt->m_y );
-  }
+  EventData d ( this, evt );
+  addH3DThreadCallbackBlocking ( onMouseMoveCallback, &d );
   return false;
+}
+
+void H3DPlugin::onMouseScrollCallback ( void* data ) {
+  EventData* d= static_cast<EventData*>(data);
+  FB::MouseScrollEvent* evt= static_cast<FB::MouseScrollEvent*>(d->event);
+
+  if ( d->plugin->h3dPluginWindow ) {
+    if ( evt->m_dy > 0 ) {
+      d->plugin->h3dPluginWindow->onMouseWheelAction(
+        MouseSensor::FROM );
+    } else {
+      d->plugin->h3dPluginWindow->onMouseWheelAction(
+        MouseSensor::TOWARDS );
+    }
+  }
 }
 
 bool H3DPlugin::onMouseScroll(FB::MouseScrollEvent *evt, FB::PluginWindow *)
 {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
-  if ( h3dPluginWindow ) {
-    if ( evt->m_dy > 0 ) {
-      h3dPluginWindow->onMouseWheelAction(
-        MouseSensor::FROM );
-    } else {
-      h3dPluginWindow->onMouseWheelAction(
-        MouseSensor::TOWARDS );
-    }
-  }
+  EventData d ( this, evt );
+  addH3DThreadCallbackBlocking ( onMouseScrollCallback, &d );
   return false;
+}
+
+void H3DPlugin::onKeyDownCallback ( void* data ) {
+  EventData* d= static_cast<EventData*>(data);
+  FB::KeyDownEvent* evt= static_cast<FB::KeyDownEvent*>(d->event);
+
+  if ( d->plugin->h3dPluginWindow ) {
+    d->plugin->h3dPluginWindow->onKeyDown( evt->m_os_key_code, false );
+  }
 }
 
 bool H3DPlugin::onKeyDown(FB::KeyDownEvent *evt, FB::PluginWindow *)
 {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
-  if ( h3dPluginWindow ) {
-    h3dPluginWindow->onKeyDown( evt->m_os_key_code, false );
-  }
+  EventData d ( this, evt );
+  addH3DThreadCallbackBlocking ( onKeyDownCallback, &d );
   return false;
+}
+
+void H3DPlugin::onKeyUpCallback ( void* data ) {
+  EventData* d= static_cast<EventData*>(data);
+  FB::KeyUpEvent* evt= static_cast<FB::KeyUpEvent*>(d->event);
+
+  if ( d->plugin->h3dPluginWindow ) {
+    d->plugin->h3dPluginWindow->onKeyUp( evt->m_os_key_code, false );
+  }
 }
 
 bool H3DPlugin::onKeyUp(FB::KeyUpEvent *evt, FB::PluginWindow *)
 {
-  boost::mutex::scoped_lock lock ( h3d_mutex );
-  if ( h3dPluginWindow ) {
-    h3dPluginWindow->onKeyUp( evt->m_os_key_code, false );
-  }
+  EventData d ( this, evt );
+  addH3DThreadCallbackBlocking ( onKeyUpCallback, &d );
   return false;
+}
+
+void H3DPlugin::onWindowAttachedCallback ( void* data ) {
+  H3DPlugin* plugin= static_cast < H3DPlugin* > ( data );
+
+  plugin->scene.reset ( new Scene );
+  plugin->h3dPluginWindow= new H3DPluginWindow ( plugin->pluginWindowWin );
+  plugin->scene->window->push_back ( plugin->h3dPluginWindow );
+
+  if ( plugin->sceneUrl != "" ) {
+    plugin->scene->loadSceneRoot ( plugin->sceneUrl );
+  }
+
+  staticState.count++;
 }
 
 bool H3DPlugin::onWindowAttached(FB::AttachedEvent *evt, FB::PluginWindow *window )
 {
-  FBLOG_INFO("H3DPlugin::onWindowAttached()", "attach");
-
   // The window is attached; act appropriately
   pluginWindow = window;
   pluginWindowWin = dynamic_cast<FB::PluginWindowWin*>(window);
- 
-  // Start the main H3D thread
-  h3d_thread= boost::thread(boost::bind(&H3DPlugin::drawThreaded, this));
-    
+
   // We need to wait until OpenGL has been initialized by the H3D thread
   // otherwise Firefox will crash on resize of mouse down events
   // See: http://forum.firebreath.org/topic/181/
-  boost::mutex::scoped_lock lk(h3d_mutex);
-  while ( !h3d_inited ) {
-    h3d_inited_condition.wait(lk);
-  }
-
-  FBLOG_INFO("H3DPlugin::onWindowAttached()", "completed");
+  addH3DThreadCallbackBlocking ( onWindowAttachedCallback, this );
 
   return false;
 }
 
-bool H3DPlugin::onWindowDetached(FB::DetachedEvent *evt, FB::PluginWindow *)
-{
-  FBLOG_INFO("H3DPlugin::onWindowDetached()", "detached");
+void H3DPlugin::onWindowDetachedCallback ( void* data ) {
+  H3DPlugin* plugin= static_cast < H3DPlugin* > ( data );
 
-  h3d_mutex.lock();
-  h3d_finished= true;
-  h3d_mutex.unlock();
-  h3d_thread.join();
+  plugin->scene.reset ( NULL );
+  staticState.count--;
+}
 
-  FBLOG_INFO("H3DPlugin::onWindowDetached()", "complete");
+bool H3DPlugin::onWindowDetached(FB::DetachedEvent *evt, FB::PluginWindow *) {
+  addH3DThreadCallbackBlocking ( onWindowDetachedCallback, this );
 
   // The window is about to be detached; act appropriately
   return false;

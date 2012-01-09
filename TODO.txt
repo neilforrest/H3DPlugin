@@ -8,3 +8,9 @@ Licence
 Installer
 
 Examples online
+
+
+------------------
+
+** loadScene() then refresh (Firefox)
+** Safari hang on second load

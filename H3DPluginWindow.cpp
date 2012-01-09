@@ -29,6 +29,7 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #include "H3DPluginWindow.h"
+#include "logging.h"
 
 using namespace H3D;
 
@@ -58,12 +59,66 @@ H3DPluginWindow::H3DPluginWindow( FB::PluginWindowWin* _fbWindow,
   database.initFields( this );
 }
 
+H3DPluginWindow::~H3DPluginWindow () {
+  if ( isInitialized() ) {
+    FBLOG_INFO("H3DPluginWindow::~H3DPluginWindow", "disableOpenGL " << this );
+    disableOpenGL ( fbWindow->getHWND(), hDC, hRC );
+  }
+}
+
+void H3DPluginWindow::initialize() {
+  initWindowHandler();
+  initWindowWithContext();
+
+  if( !GLEW_init ) {
+    GLenum err = glewInit();
+    if (GLEW_OK != err) {
+      stringstream s;
+      s << "Glew init error: " << glewGetErrorString( err );
+      throw Exception::H3DAPIException( s.str() );
+    }
+    GLEW_init = true;
+  }
+    
+#ifdef WIN32
+  rendering_context = wglGetCurrentContext();
+  
+#endif    
+
+  // With this code enabled there is a crash using multiple plugins on page
+  //for( set< H3DWindowNode * >::iterator i = windows.begin();
+  //     i != windows.end();
+  //     i++ ) {
+  //  if( (*i)!=this && (*i)->isInitialized() )
+  //    shareRenderingContext( *i );
+  //}
+  
+  // configure OpenGL context for rendering.
+  glEnable( GL_DEPTH_TEST );
+  glDepthFunc( GL_LESS );
+  glDepthMask( GL_TRUE );
+  glEnable( GL_LIGHTING );
+  glLightModeli( GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE );
+  glLightModeli( GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE );
+  GLfloat no_ambient[] = { 0.0, 0.0, 0.0, 1.0 };
+  glLightModelfv( GL_LIGHT_MODEL_AMBIENT, no_ambient);
+  glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
+  glPixelStorei( GL_PACK_ALIGNMENT, 1 );
+  if( GLEW_EXT_separate_specular_color ) {
+    glLightModeli( GL_LIGHT_MODEL_COLOR_CONTROL_EXT, 
+                   GL_SEPARATE_SPECULAR_COLOR_EXT );
+  }
+  Node::initialize();
+  last_render_mode = renderMode->getRenderMode();
+}
+
 void H3DPluginWindow::initWindow() {
   enableOpenGL( fbWindow->getHWND(), hDC, hRC );
   SetFocus( fbWindow->getHWND() );
 }
 
 void H3DPluginWindow::swapBuffers() {
+  glFlush();
   SwapBuffers( hDC );
   EndPaint(fbWindow->getHWND(), &ps);
 }
@@ -72,6 +127,7 @@ void H3DPluginWindow::setFullscreen( bool fullscreen ) {
 }
 
 void H3DPluginWindow::makeWindowActive() {
+
   // Reshape the window to match current dimentions
   FB::Rect pos= fbWindow->getWindowPosition();
   int w= pos.right-pos.left;

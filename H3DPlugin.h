@@ -44,10 +44,10 @@ public:
     void shutdown();
     virtual FB::JSAPIPtr createJSAPI();
 
-    static LPTHREAD_START_ROUTINE drawThreaded( LPVOID lpParam );
-    static H3D::Scene::CallbackCode loadSceneCallback ( void* data );
+    static void drawThreaded();
+    static void loadSceneCallback ( void* data );
 
-    bool render ();
+    static bool idle ();
 
     void loadScene ( const std::string& url );
 
@@ -56,6 +56,14 @@ public:
     // value of the "windowless" param tag, remove this method or return
     // FB::PluginCore::isWindowless()
     virtual bool isWindowless() { return false; }
+
+    struct EventData {
+      EventData ( H3DPlugin* _plugin, FB::PluginEvent* _event ) : 
+        plugin ( _plugin ), event ( _event ) {}
+      
+      H3DPlugin* plugin;
+      FB::PluginEvent* event;
+    };
 
     BEGIN_PLUGIN_EVENT_MAP()
         EVENTTYPE_CASE(FB::MouseDownEvent, onMouseDown, FB::PluginWindow)
@@ -105,24 +113,49 @@ protected:
 
   H3DUtil::AutoRef< H3D::Scene > scene;
   H3D::H3DPluginWindow* h3dPluginWindow;
-  boost::mutex h3d_mutex;
-  boost::condition h3d_inited_condition;
-  bool h3d_inited;
   std::string sceneUrl;
 
-  bool h3d_finished;
+  typedef void (*CallbackFunc)(void *data);
 
-  boost::thread h3d_thread;
+  typedef vector<pair<CallbackFunc, void*>> CallbackList;
+
+  static void onWindowAttachedCallback ( void* data );
+  static void onWindowDetachedCallback ( void* data );
+
+  static void onMouseDownCallback ( void* data );
+  static void onMouseUpCallback ( void* data );
+  static void onMouseMoveCallback ( void* data );
+  static void onMouseScrollCallback ( void* data );
+
+  static void onKeyDownCallback ( void* data );
+  static void onKeyUpCallback ( void* data );
+
+  static void addH3DThreadCallback ( CallbackFunc callback, void* data );
+  static void addH3DThreadCallbackBlocking ( CallbackFunc callback, void* data );
+
+  struct StaticState {
+    StaticState () : h3d_finished ( false ), count ( 0 ), callbacks_executed ( false ) {}
+
+    boost::mutex h3d_mutex;
+    
+    bool h3d_finished;
+    boost::thread h3d_thread;
+    CallbackList callbacks;
+    int count;
+
+    bool callbacks_executed;
+    boost::condition callbacks_executed_condition;
+  };
+
+  static StaticState staticState;
 
   FB::PluginWindowWin* pluginWindowWin;
   FB::PluginWindow* pluginWindow;
 
-  // the buffer object for console_stream. Pointer is owned by
-  // the console_stream object.
+  // the buffer object for console_stream.
   ConsoleStreamBuf *console_stream_buf;
 
-  // The console stream. The contents of other_thread_output is eventuelly
-  // transferred to this stream.
+  // The console stream.
   std::auto_ptr< std::ostream >console_stream;
 };
 
