@@ -47,7 +47,7 @@ public:
         //outMethods.push_back(std::make_pair(FB::Log::LogMethod_Console, std::string()));
  
         // The next line will enable logging to a logfile.
-        outMethods.push_back(std::make_pair(FB::Log::LogMethod_File, "C:\\Development\\FireBreath\\log.txt"));
+        //outMethods.push_back(std::make_pair(FB::Log::LogMethod_File, "C:\\Development\\FireBreath\\log.txt"));
  
         // Obviously, if you use both lines, you will get output on both sinks.
     }

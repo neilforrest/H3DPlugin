@@ -1,6 +1,6 @@
 <html>
   <head>
-    <title>H3DPlugin Test</title>
+    <title>H3DPlugin Test - MouseSensor</title>
   </head>
 
   <script type="text/javascript">
@@ -19,12 +19,18 @@
         }
         return false;
       }
-
+      
+      function load () {
+        if (plugin() == null || plugin().valid == undefined || !plugin().valid) {
+          window.location = "install.php?referer=" + window.location;
+        }
+      }
+      
   </script>
   
-<body>
+<body onload="load()">
 
-<h1>H3DPlugin Test</h1>
+<h1>H3DPlugin Test - MouseSensor</h1>
 <object id="plugin0" type="model/x3d+xml" width="800" height="500" data="MouseSensor.x3d">
 </object>
 
