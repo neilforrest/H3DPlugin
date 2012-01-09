@@ -1,3 +1,15 @@
+Security Disclaimer!!
+=====================
+
+In its present form, this plugin is provided for development purposes only. Installation of this
+plugin will create major security issues for you! 
+
+We recomend that you disable this plugin when your are not using it, and that you only visit the official
+example pages when the plugin is enabled.
+
+In summary: Install this plugin at your own risk!
+
+
 Requirements
 ============
 
